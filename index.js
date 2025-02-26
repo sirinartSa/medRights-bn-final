@@ -68,8 +68,7 @@ app.get('/', (req, res) => {
             { "api_name": "/api/patients/status/1", "method": "get" },
             { "api_name": "/api/patients/age-range", "method": "get" },
             { "api_name": "/api/patients/status/1", "method": "get" },
-            { "api_name": "/api/top-diseases", "method": "get" },
-            { "api_name": "/register/", "method": "post" }
+            { "api_name": "/api/top-diseases", "method": "get" }
         ]
     });
 });
@@ -427,23 +426,5 @@ app.put('/api/patients/edit', (req, res) => {
         }
 
         res.json({ message: 'Patient data updated successfully' });
-    });
-});
-
-app.post('/register', (req, res) => {
-    const { name, email, password } = req.body;
-
-    if (!password) {
-        return res.status(400).json({ error: "Password is required" });
-    }
-
-    const hashedPassword = hashFunction(password); // ตรวจสอบว่ามีการแปลงค่ารหัสผ่านหรือไม่
-
-    db.query("INSERT INTO users (name, email, password) VALUES (?, ?, ?)", 
-    [name, email, hashedPassword], (err, result) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        res.json({ success: "User registered successfully" });
     });
 });
