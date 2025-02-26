@@ -122,9 +122,9 @@ app.post("/addUser", (req, res) => {
             // ถ้าไม่มี `patient_id` ให้ใช้ค่า `NULL`
             const patient_id_value = patient_id ? patient_id : null;
 
-            // SQL สำหรับเพิ่มข้อมูลผู้ใช้ (ไม่มี password)
-            const sql = `INSERT INTO users (user_id, fullname_user, email, role, chronic_disease, status, patient_id, created_at, updated_at) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`;
+            // SQL สำหรับเพิ่มข้อมูลผู้ใช้ (ไม่มี created_at และ updated_at)
+            const sql = `INSERT INTO users (user_id, fullname_user, email, role, chronic_disease, status, patient_id) 
+                         VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
             const values = [user_id, fullname_user, email, role, chronic_disease || "", status || "active", patient_id_value];
 
