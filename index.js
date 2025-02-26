@@ -287,6 +287,8 @@ app.get('/getAppointments', (req, res) => {
     });
 });
 
+
+
 app.post('/addAppointment', (req, res) => {
     let { appointment_id, patient_id, user_id, appointment_date, clinic } = req.body;
 
@@ -313,6 +315,7 @@ app.post('/addAppointment', (req, res) => {
         res.json({ error: false, msg: "เพิ่มนัดหมายสำเร็จ!", data: results });
     });
 });
+
 
 app.put('/editAppointment/:appointmentId', (req, res) => {
     let { appointment_date, clinic } = req.body;
