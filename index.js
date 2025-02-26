@@ -96,19 +96,21 @@ app.get('/getUser/:id', (req, res) => {
     });
 });
 
-app.post('/addUser', async (req, res) => {
-    const { user_id, fullname_user, email, password, role, chronic_disease, status, patient_id } = req.body;
+app.post("/addUser", (req, res) => {
+    const { user_id, fullname_user, email, role, chronic_disease, status, patient_id } = req.body;
 
     console.log("📥 ข้อมูลที่ได้รับจาก Frontend:", req.body);
 
-    if (!user_id || !fullname_user || !email || !password || !role) {
+    // เช็กว่ามีข้อมูลที่จำเป็นครบหรือไม่
+    if (!user_id || !fullname_user || !email || !role) {
         console.error("❌ ข้อมูลไม่ครบ:", req.body);
         return res.status(400).json({ error: true, msg: "❌ กรุณากรอกข้อมูลให้ครบถ้วน" });
     }
 
     try {
+        // ตรวจสอบว่าอีเมลนี้มีอยู่แล้วหรือไม่
         const checkEmailQuery = "SELECT email FROM users WHERE email = ?";
-        connection.query(checkEmailQuery, [email], async (err, results) => {
+        connection.query(checkEmailQuery, [email], (err, results) => {
             if (err) {
                 console.error("❌ ตรวจสอบอีเมลล้มเหลว:", err);
                 return res.status(500).json({ error: true, msg: "❌ Database error" });
@@ -117,24 +119,23 @@ app.post('/addUser', async (req, res) => {
                 return res.status(400).json({ error: true, msg: "❌ อีเมลนี้ถูกใช้แล้ว" });
             }
 
-            const hashedPassword = await bcrypt.hash(password, 10);
+            // ถ้าไม่มี `patient_id` ให้ใช้ค่า `NULL`
+            const patient_id_value = patient_id ? patient_id : null;
 
-            const patient_id_value = patient_id ? patient_id : null; 
+            // SQL สำหรับเพิ่มข้อมูลผู้ใช้ (ไม่มี password)
+            const sql = `INSERT INTO users (user_id, fullname_user, email, role, chronic_disease, status, patient_id, created_at, updated_at) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`;
 
-const sql = `INSERT INTO users (user_id, fullname_user, email, password, role, chronic_disease, status, patient_id, created_at, updated_at) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`;
+            const values = [user_id, fullname_user, email, role, chronic_disease || "", status || "active", patient_id_value];
 
-const values = [user_id, fullname_user, email, hashedPassword, role, chronic_disease || "", status || "active", patient_id_value];
-
-connection.query(sql, values, (err, results) => {
-    if (err) {
-        console.error("Error inserting user:", err);
-        return res.status(500).json({ error: true, msg: "Cannot Insert", details: err.sqlMessage });
-    }
-    console.log("เพิ่มผู้ใช้สำเร็จ:", results);
-    res.json({ error: false, data: results, msg: "Inserted successfully" });
-});
-
+            connection.query(sql, values, (err, results) => {
+                if (err) {
+                    console.error("❌ Error inserting user:", err);
+                    return res.status(500).json({ error: true, msg: "❌ Cannot Insert", details: err.sqlMessage });
+                }
+                console.log("✅ เพิ่มผู้ใช้สำเร็จ:", results);
+                res.json({ error: false, data: results, msg: "✅ Inserted successfully" });
+            });
         });
 
     } catch (error) {
@@ -142,7 +143,6 @@ connection.query(sql, values, (err, results) => {
         return res.status(500).json({ error: true, msg: "❌ ระบบเกิดข้อผิดพลาด" });
     }
 });
-
 
 app.put('/editUser/:id', (req, res) => {
     const { fullname_user, email, password, role, chronic_disease, status, patient_id } = req.body;
