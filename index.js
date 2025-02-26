@@ -61,7 +61,6 @@ app.get('/', (req, res) => {
             { "api_name": "/addAppointment/", "method": "post" },
             { "api_name": "/editAppointment/:appointmentId", "method": "put" },
             { "api_name": "/deleteAppointment/:appointmentId", "method": "delete" },
-            { "api_name": "/getAppointment/:id", "method": "get" },
             { "api_name": "/api/patients/today", "method": "get" },
             { "api_name": "/api/patients/search", "method": "get" },
             { "api_name": "/api/patients/status/1", "method": "get" },
@@ -255,35 +254,38 @@ app.get('/getAppointments', (req, res) => {
 
 
 app.post('/addAppointment', (req, res) => {
-    let { appointment_id, patient_id, user_id, appointment_date, clinic } = req.body;
+    let { appointment_id, patient_id, user_id, appointment_datetime, clinic } = req.body;
 
-    // ตรวจสอบว่าค่าที่รับมาตรงกับที่ต้องการ
-    if (!patient_id || !user_id || !appointment_date || !clinic) {
+    // ตรวจสอบค่าที่รับเข้ามา
+    if (!patient_id || !user_id || !appointment_datetime || !clinic) {
         return res.status(400).json({ error: true, msg: "กรุณากรอกข้อมูลให้ครบถ้วน" });
     }
 
-    // ตรวจสอบรูปแบบวันที่ (ต้องเป็น YYYY-MM-DD)
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(appointment_date)) {
-        return res.status(400).json({ error: true, msg: "รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)" });
+    // ตรวจสอบรูปแบบวันที่-เวลา (ต้องเป็น YYYY-MM-DD HH:mm:ss)
+    const dateTimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+    if (!dateTimeRegex.test(appointment_datetime)) {
+        return res.status(400).json({ error: true, msg: "รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD HH:mm:ss)" });
     }
 
     // ถ้าไม่มี appointment_id ให้สร้างใหม่
     if (!appointment_id) {
         const randomNum = Math.floor(10 + Math.random() * 90); // สุ่มเลข 10-99
-        appointment_id = APT${randomNum};
+        appointment_id = `APT${randomNum}`;
     }
 
     console.log("Generated appointment_id:", appointment_id);
 
+    // แปลงวันที่-เวลาให้เป็นโซนเอเชีย (Asia/Bangkok)
+    const appointmentDateTimeAsia = moment.tz(appointment_datetime, "Asia/Bangkok").format("YYYY-MM-DD HH:mm:ss");
+
     // คำสั่ง SQL
-    const sql = 
+    const sql = `
         INSERT INTO appointments (appointment_id, patient_id, user_id, appointment_date, clinic) 
         VALUES (?, ?, ?, ?, ?)
-    ;
+    `;
 
     // ดำเนินการเพิ่มข้อมูล
-    connection.query(sql, [appointment_id, patient_id, user_id, appointment_date, clinic], (err, results) => {
+    connection.query(sql, [appointment_id, patient_id, user_id, appointmentDateTimeAsia, clinic], (err, results) => {
         if (err) {
             console.error("❌ Database Insert Error:", err);
             return res.status(500).json({ 
@@ -296,6 +298,7 @@ app.post('/addAppointment', (req, res) => {
         res.json({ error: false, msg: "✅ เพิ่มนัดหมายสำเร็จ!", data: results });
     });
 });
+
 
 app.put('/editAppointment/:appointmentId', (req, res) => {
     const { appointmentId } = req.params; // รับค่า appointmentId จาก URL
