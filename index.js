@@ -429,3 +429,20 @@ app.put('/api/patients/edit', (req, res) => {
     });
 });
 
+app.post('/register', (req, res) => {
+    const { name, email, password } = req.body;
+
+    if (!password) {
+        return res.status(400).json({ error: "Password is required" });
+    }
+
+    const hashedPassword = hashFunction(password); // ตรวจสอบว่ามีการแปลงค่ารหัสผ่านหรือไม่
+
+    db.query("INSERT INTO users (name, email, password) VALUES (?, ?, ?)", 
+    [name, email, hashedPassword], (err, result) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ success: "User registered successfully" });
+    });
+});
