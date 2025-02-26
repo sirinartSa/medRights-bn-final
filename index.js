@@ -296,28 +296,6 @@ app.post('/addAppointment', (req, res) => {
         res.json({ error: false, msg: "✅ เพิ่มนัดหมายสำเร็จ!", data: results });
     });
 });
-app.get('/getAppointment/:id', async (req, res) => {
-    console.log("Params:", req.params);  // ✅ ตรวจสอบค่าที่ส่งมา
-    console.log("Body:", req.body);      // ✅ ควรเป็น {} (ถ้าเป็น GET)
-    
-    const appointmentId = req.params.id;
-    if (!appointmentId || appointmentId.trim() === "") {
-        return res.status(400).json({ error: true, msg: "Invalid appointment ID" });
-    }
-
-    connection.query('SELECT * FROM appointments WHERE appointment_id = ?', [appointmentId], (err, results) => {
-        if (err) {
-            console.error("Database error:", err);
-            return res.status(500).json({ error: true, msg: "Database error" });
-        }
-        if (results.length === 0) {
-            return res.status(404).json({ error: true, msg: "Appointment not found" });
-        }
-        res.json({ error: false, data: results[0] });
-    });
-});
-
-
 
 app.put('/editAppointment/:appointmentId', (req, res) => {
     const { appointmentId } = req.params; // รับค่า appointmentId จาก URL
