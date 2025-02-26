@@ -292,30 +292,45 @@ app.get('/getAppointments', (req, res) => {
 app.post('/addAppointment', (req, res) => {
     let { appointment_id, patient_id, user_id, appointment_date, clinic } = req.body;
 
-    // ถ้าไม่มี appointment_id ให้สร้างใหม่เป็น APTXX (XX เป็นตัวเลขสุ่ม 2 หลัก)
-    if (!appointment_id) {
-        const randomNum = Math.floor(10 + Math.random() * 90); // สุ่มเลข 10-99
-        appointment_id = `APT${randomNum}`; // ได้ค่าเป็น APTXX เช่น APT25
-    }
-
-    console.log("Generated appointment_id:", appointment_id);
-
+    // ตรวจสอบว่าค่าที่รับมาตรงกับที่ต้องการ
     if (!patient_id || !user_id || !appointment_date || !clinic) {
         return res.status(400).json({ error: true, msg: "กรุณากรอกข้อมูลให้ครบถ้วน" });
     }
 
-    const sql = `INSERT INTO appointments (appointment_id, patient_id, user_id, appointment_date, clinic) 
-                 VALUES (?, ?, ?, ?, ?)`;
+    // ตรวจสอบรูปแบบวันที่ (ต้องเป็น YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(appointment_date)) {
+        return res.status(400).json({ error: true, msg: "รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)" });
+    }
 
+    // ถ้าไม่มี appointment_id ให้สร้างใหม่
+    if (!appointment_id) {
+        const randomNum = Math.floor(10 + Math.random() * 90); // สุ่มเลข 10-99
+        appointment_id = `APT${randomNum}`;
+    }
+
+    console.log("Generated appointment_id:", appointment_id);
+
+    // คำสั่ง SQL
+    const sql = `
+        INSERT INTO appointments (appointment_id, patient_id, user_id, appointment_date, clinic) 
+        VALUES (?, ?, ?, ?, ?)
+    `;
+
+    // ดำเนินการเพิ่มข้อมูล
     connection.query(sql, [appointment_id, patient_id, user_id, appointment_date, clinic], (err, results) => {
         if (err) {
-            console.error("Database Insert Error:", err);
-            return res.status(500).json({ error: true, msg: "ไม่สามารถเพิ่มนัดหมายได้", details: err.sqlMessage });
+            console.error("❌ Database Insert Error:", err);
+            return res.status(500).json({ 
+                error: true, 
+                msg: "ไม่สามารถเพิ่มนัดหมายได้", 
+                details: err.sqlMessage 
+            });
         }
-        res.json({ error: false, msg: "เพิ่มนัดหมายสำเร็จ!", data: results });
+        
+        res.json({ error: false, msg: "✅ เพิ่มนัดหมายสำเร็จ!", data: results });
     });
 });
-
 
 app.put('/editAppointment/:appointmentId', (req, res) => {
     let { appointment_date, clinic } = req.body;
