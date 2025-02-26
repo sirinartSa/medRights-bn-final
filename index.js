@@ -262,6 +262,31 @@ app.get('/getPatient/:id', (req, res) => {
     });
 });
 
+app.get('/getAppointments', (req, res) => {
+    const sql = `
+        SELECT 
+            a.appointment_id, 
+            a.patient_id, 
+            p.first_name, 
+            p.last_name, 
+            a.appointment_date, 
+            a.clinic, 
+            u.fullname_user AS doctor_name
+        FROM appointments a
+        LEFT JOIN patients p ON a.patient_id = p.patient_id
+        LEFT JOIN users u ON a.user_id = u.user_id  -- ดึงเฉพาะชื่อแพทย์
+        ORDER BY a.appointment_date
+    `;
+
+    connection.query(sql, (err, results) => {
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).json({ error: true, msg: "Database error", details: err.message });
+        }
+        res.json({ error: false, data: results });
+    });
+});
+
 app.post('/addAppointment', (req, res) => {
     const { patient_id, user_id, appointment_date, clinic } = req.body;
 
@@ -280,19 +305,6 @@ app.post('/addAppointment', (req, res) => {
         res.json({ error: false, msg: "เพิ่มนัดหมายสำเร็จ!", data: results });
     });
 });
-
-app.get('/getAppointments', (req, res) => {
-    connection.query('SELECT * FROM appointments ORDER BY appointment_date DESC', (err, results) => {
-        if (err) {
-            console.error("Database error:", err);
-            return res.status(500).json({ error: true, msg: "Database error", details: err.message });
-        }
-        res.json({ error: false, data: results });
-    });
-});
-
-
-
 app.put('/editAppointment/:appointmentId', (req, res) => {
     let { appointment_date, clinic } = req.body;
     connection.query('UPDATE appointments SET appointment_date = ?, clinic = ? WHERE appointment_id = ?', 
