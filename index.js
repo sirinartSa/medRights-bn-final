@@ -145,15 +145,67 @@ app.post("/addUser", (req, res) => {
 });
 
 app.put('/editUser/:id', (req, res) => {
-    const { fullname_user, email, password, role, chronic_disease, status, patient_id } = req.body;
+    const { fullname_user, email, role, chronic_disease, status, patient_id } = req.body;
     const user_id = req.params.id;
 
-    const sql = 'UPDATE users SET fullname_user = ?, email = ?, password = ?, role = ?, chronic_disease = ?, status = ?, patient_id = ? WHERE user_id = ?';
-    const values = [fullname_user, email, password, role, chronic_disease, status, patient_id, user_id];
+    if (!user_id) {
+        return res.status(400).json({ error: true, msg: "❌ ต้องระบุ user_id" });
+    }
 
-    connection.query(sql, values, (err, results) => {
-        if (err) return res.status(500).json({ error: true, msg: err.message });
-        res.json({ error: false, msg: results.affectedRows ? "User Updated" : "User Not Found" });
+    // ตรวจสอบว่ามี user_id จริงหรือไม่
+    const checkUserQuery = "SELECT * FROM users WHERE user_id = ?";
+    connection.query(checkUserQuery, [user_id], (err, results) => {
+        if (err) {
+            console.error("❌ Database error:", err);
+            return res.status(500).json({ error: true, msg: "❌ Database error" });
+        }
+        if (results.length === 0) {
+            return res.status(404).json({ error: true, msg: "❌ ไม่พบผู้ใช้ที่ต้องการแก้ไข" });
+        }
+
+        // เตรียมค่าที่จะอัปเดต
+        const updateFields = [];
+        const values = [];
+
+        if (fullname_user) {
+            updateFields.push("fullname_user = ?");
+            values.push(fullname_user);
+        }
+        if (email) {
+            updateFields.push("email = ?");
+            values.push(email);
+        }
+        if (role) {
+            updateFields.push("role = ?");
+            values.push(role);
+        }
+        if (chronic_disease !== undefined) {
+            updateFields.push("chronic_disease = ?");
+            values.push(chronic_disease);
+        }
+        if (status) {
+            updateFields.push("status = ?");
+            values.push(status);
+        }
+        if (patient_id !== undefined) {
+            updateFields.push("patient_id = ?");
+            values.push(patient_id || null);
+        }
+
+        if (updateFields.length === 0) {
+            return res.status(400).json({ error: true, msg: "❌ ไม่มีข้อมูลที่ต้องการอัปเดต" });
+        }
+
+        const sql = `UPDATE users SET ${updateFields.join(", ")} WHERE user_id = ?`;
+        values.push(user_id);
+
+        connection.query(sql, values, (err, results) => {
+            if (err) {
+                console.error("❌ Error updating user:", err);
+                return res.status(500).json({ error: true, msg: "❌ ไม่สามารถอัปเดตข้อมูล", details: err.sqlMessage });
+            }
+            res.json({ error: false, msg: results.affectedRows ? "✅ อัปเดตสำเร็จ" : "❌ ไม่มีการเปลี่ยนแปลง" });
+        });
     });
 });
 
