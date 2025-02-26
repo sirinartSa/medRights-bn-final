@@ -3,8 +3,13 @@ const mysql = require('mysql2');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-
 const app = express();
+const bodyParser = require('body-parser');
+
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
+const moment = require('moment-timezone'); // เพิ่ม moment-timezone
 const hostname = '127.0.0.1';
 const port = 3000;
 
@@ -53,10 +58,11 @@ app.get('/', (req, res) => {
             { "api_name": "/editPatient/", "method": "put" },
             { "api_name": "/deletePatient/:id", "method": "delete" },
             { "api_name": "/getAppointments/", "method": "get" },
+            { "api_name": "/api/top-diseases", "method": "get" },
             { "api_name": "/addAppointment/", "method": "post" },
             { "api_name": "/editAppointment/:appointmentId", "method": "put" },
             { "api_name": "/deleteAppointment/:appointmentId", "method": "delete" },
-            { "api_name": "/api/allpatients", "method": "get" },
+            { "api_name": "/getAppointment/:id", "method": "get" },
             { "api_name": "/api/patients/today", "method": "get" },
             { "api_name": "/api/patients/search", "method": "get" },
             { "api_name": "/api/patients/status/1", "method": "get" },
@@ -76,7 +82,6 @@ app.get('/', (req, res) => {
 app.listen(port, hostname, () => {
     console.log(`✅ Server is running at http://${hostname}:${port}/`);
 });
-
 
 
 // ดึงข้อมูลผู้ใช้ทั้งหมด
@@ -119,7 +124,6 @@ app.get('/getUser/:id', (req, res) => {
         }
     );
 });
-
 
 app.post("/addUser", (req, res) => {
     const { user_id, fullname_user, email, role, chronic_disease, status, patient_id } = req.body;
@@ -169,7 +173,15 @@ app.post("/addUser", (req, res) => {
     }
 });
 
+
+
 app.put('/editUser/:id', (req, res) => {
+    console.log("📥 ข้อมูลที่ได้รับ:", req.body); // ✅ Log เพื่อตรวจสอบค่า body
+    
+    if (!req.body || Object.keys(req.body).length === 0) {
+        return res.status(400).json({ error: true, msg: "❌ ไม่มีข้อมูลที่ส่งมา" });
+    }
+
     const { fullname_user, email, role, chronic_disease, status, patient_id } = req.body;
     const user_id = req.params.id;
 
@@ -177,62 +189,16 @@ app.put('/editUser/:id', (req, res) => {
         return res.status(400).json({ error: true, msg: "❌ ต้องระบุ user_id" });
     }
 
-    // ตรวจสอบว่ามี user_id จริงหรือไม่
-    const checkUserQuery = "SELECT * FROM users WHERE user_id = ?";
-    connection.query(checkUserQuery, [user_id], (err, results) => {
-        if (err) {
-            console.error("❌ Database error:", err);
-            return res.status(500).json({ error: true, msg: "❌ Database error" });
-        }
-        if (results.length === 0) {
-            return res.status(404).json({ error: true, msg: "❌ ไม่พบผู้ใช้ที่ต้องการแก้ไข" });
-        }
+    const sql = 'UPDATE users SET fullname_user = ?, email = ?, role = ?, chronic_disease = ?, status = ?, patient_id = ? WHERE user_id = ?';
+    const values = [fullname_user, email, role, chronic_disease, status, patient_id, user_id];
 
-        // เตรียมค่าที่จะอัปเดต
-        const updateFields = [];
-        const values = [];
-
-        if (fullname_user) {
-            updateFields.push("fullname_user = ?");
-            values.push(fullname_user);
-        }
-        if (email) {
-            updateFields.push("email = ?");
-            values.push(email);
-        }
-        if (role) {
-            updateFields.push("role = ?");
-            values.push(role);
-        }
-        if (chronic_disease !== undefined) {
-            updateFields.push("chronic_disease = ?");
-            values.push(chronic_disease);
-        }
-        if (status) {
-            updateFields.push("status = ?");
-            values.push(status);
-        }
-        if (patient_id !== undefined) {
-            updateFields.push("patient_id = ?");
-            values.push(patient_id || null);
-        }
-
-        if (updateFields.length === 0) {
-            return res.status(400).json({ error: true, msg: "❌ ไม่มีข้อมูลที่ต้องการอัปเดต" });
-        }
-
-        const sql = `UPDATE users SET ${updateFields.join(", ")} WHERE user_id = ?`;
-        values.push(user_id);
-
-        connection.query(sql, values, (err, results) => {
-            if (err) {
-                console.error("❌ Error updating user:", err);
-                return res.status(500).json({ error: true, msg: "❌ ไม่สามารถอัปเดตข้อมูล", details: err.sqlMessage });
-            }
-            res.json({ error: false, msg: results.affectedRows ? "✅ อัปเดตสำเร็จ" : "❌ ไม่มีการเปลี่ยนแปลง" });
-        });
+    connection.query(sql, values, (err, results) => {
+        if (err) return res.status(500).json({ error: true, msg: "❌ ไม่สามารถอัปเดตข้อมูล" });
+        res.json({ error: false, msg: "✅ อัปเดตข้อมูลสำเร็จ" });
     });
 });
+
+
 
 app.delete('/deleteUser/:id', (req, res) => {
     const userId = req.params.id;
@@ -290,17 +256,17 @@ app.get('/getAppointments', (req, res) => {
 
 
 app.post('/addAppointment', (req, res) => {
-    let { appointment_id, patient_id, user_id, appointment_date, clinic } = req.body;
+    let { appointment_id, patient_id, user_id, appointment_datetime, clinic } = req.body;
 
-    // ตรวจสอบว่าค่าที่รับมาตรงกับที่ต้องการ
-    if (!patient_id || !user_id || !appointment_date || !clinic) {
+    // ตรวจสอบค่าที่รับเข้ามา
+    if (!patient_id || !user_id || !appointment_datetime || !clinic) {
         return res.status(400).json({ error: true, msg: "กรุณากรอกข้อมูลให้ครบถ้วน" });
     }
 
-    // ตรวจสอบรูปแบบวันที่ (ต้องเป็น YYYY-MM-DD)
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(appointment_date)) {
-        return res.status(400).json({ error: true, msg: "รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)" });
+    // ตรวจสอบรูปแบบวันที่-เวลา (ต้องเป็น YYYY-MM-DD HH:mm:ss)
+    const dateTimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+    if (!dateTimeRegex.test(appointment_datetime)) {
+        return res.status(400).json({ error: true, msg: "รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD HH:mm:ss)" });
     }
 
     // ถ้าไม่มี appointment_id ให้สร้างใหม่
@@ -311,6 +277,9 @@ app.post('/addAppointment', (req, res) => {
 
     console.log("Generated appointment_id:", appointment_id);
 
+    // แปลงวันที่-เวลาให้เป็นโซนเอเชีย (Asia/Bangkok)
+    const appointmentDateTimeAsia = moment.tz(appointment_datetime, "Asia/Bangkok").format("YYYY-MM-DD HH:mm:ss");
+
     // คำสั่ง SQL
     const sql = `
         INSERT INTO appointments (appointment_id, patient_id, user_id, appointment_date, clinic) 
@@ -318,7 +287,7 @@ app.post('/addAppointment', (req, res) => {
     `;
 
     // ดำเนินการเพิ่มข้อมูล
-    connection.query(sql, [appointment_id, patient_id, user_id, appointment_date, clinic], (err, results) => {
+    connection.query(sql, [appointment_id, patient_id, user_id, appointmentDateTimeAsia, clinic], (err, results) => {
         if (err) {
             console.error("❌ Database Insert Error:", err);
             return res.status(500).json({ 
@@ -332,13 +301,66 @@ app.post('/addAppointment', (req, res) => {
     });
 });
 
-app.put('/editAppointment/:appointmentId', (req, res) => {
-    let { appointment_date, clinic } = req.body;
-    connection.query('UPDATE appointments SET appointment_date = ?, clinic = ? WHERE appointment_id = ?', 
-    [appointment_date, clinic, req.params.appointmentId], (err, results) => {
-        res.json(err ? { error: "Cannot update", details: err } : { message: "Appointment updated", data: results });
+app.get('/getAppointment/:id', async (req, res) => {
+    console.log("Params:", req.params);  // ✅ ตรวจสอบค่าที่ส่งมา
+    console.log("Body:", req.body);      // ✅ ควรเป็น {} (ถ้าเป็น GET)
+    
+    const appointmentId = req.params.id;
+    if (!appointmentId || appointmentId.trim() === "") {
+        return res.status(400).json({ error: true, msg: "Invalid appointment ID" });
+    }
+
+    connection.query('SELECT * FROM appointments WHERE appointment_id = ?', [appointmentId], (err, results) => {
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).json({ error: true, msg: "Database error" });
+        }
+        if (results.length === 0) {
+            return res.status(404).json({ error: true, msg: "Appointment not found" });
+        }
+        res.json({ error: false, data: results[0] });
     });
 });
+
+
+
+app.put('/editAppointment/:appointmentId', (req, res) => {
+    const { appointmentId } = req.params; // รับค่า appointmentId จาก URL
+    const { appointment_date, clinic } = req.body; // รับค่าจาก body
+
+    // ตรวจสอบว่ามีข้อมูลเพียงพอหรือไม่
+    if (!appointmentId) {
+        return res.status(400).json({ error: true, msg: "Missing appointment ID" });
+    }
+    if (!appointment_date || !clinic) {
+        return res.status(400).json({ error: true, msg: "Missing required fields" });
+    }
+
+    // ตรวจสอบว่า ID เป็น string ตามที่กำหนด (เพราะเป็น VARCHAR(10))
+    if (typeof appointmentId !== 'string' || appointmentId.length > 10) {
+        return res.status(400).json({ error: true, msg: "Invalid appointment ID format" });
+    }
+
+    // อัปเดตข้อมูลในฐานข้อมูล
+    connection.query(
+        'UPDATE appointments SET appointment_date = ?, clinic = ? WHERE appointment_id = ?',
+        [appointment_date, clinic, appointmentId],
+        (err, results) => {
+            if (err) {
+                console.error("Database error:", err);
+                return res.status(500).json({ error: true, msg: "Database error", details: err.message });
+            }
+            if (results.affectedRows === 0) {
+                return res.status(404).json({ error: true, msg: "Appointment not found or no changes made" });
+            }
+            res.json({ error: false, msg: "Appointment updated successfully", data: results });
+        }
+    );
+});
+
+
+
+
 
 app.delete('/deleteAppointment/:appointmentId', (req, res) => {
     connection.query('DELETE FROM appointments WHERE appointment_id = ?', [req.params.appointmentId], (err, results) => {
