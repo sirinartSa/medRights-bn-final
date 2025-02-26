@@ -79,22 +79,47 @@ app.listen(port, hostname, () => {
 
 
 
+// ดึงข้อมูลผู้ใช้ทั้งหมด
 app.get('/getUsers', (req, res) => {
-    connection.query('SELECT user_id, fullname_user, email, role, status FROM users', (err, results) => {
-        if (err) {
-            console.error("Database error:", err);
-            return res.status(500).json({ error: true, msg: err.message });
+    connection.query(
+        'SELECT user_id, fullname_user, email, role, status FROM users', 
+        (err, results) => {
+            if (err) {
+                console.error("❌ Database error:", err);
+                return res.status(500).json({ error: true, msg: "❌ ไม่สามารถดึงข้อมูลผู้ใช้", details: err.message });
+            }
+            if (results.length === 0) {
+                return res.status(404).json({ error: true, msg: "❌ ไม่พบข้อมูลผู้ใช้" });
+            }
+            res.json({ error: false, data: results });
         }
-        res.json({ error: false, data: results });
-    });
+    );
 });
 
+// ดึงข้อมูลผู้ใช้ตาม user_id
 app.get('/getUser/:id', (req, res) => {
-    connection.query('SELECT * FROM users WHERE user_id = ?', [req.params.id], (err, results) => {
-        if (err) return res.status(500).json({ error: true, msg: err.message });
-        res.json({ error: false, data: results.length ? results[0] : null });
-    });
+    const user_id = req.params.id;
+
+    if (!user_id) {
+        return res.status(400).json({ error: true, msg: "❌ ต้องระบุ user_id" });
+    }
+
+    connection.query(
+        'SELECT * FROM users WHERE user_id = ?', 
+        [user_id], 
+        (err, results) => {
+            if (err) {
+                console.error("❌ Database error:", err);
+                return res.status(500).json({ error: true, msg: "❌ ไม่สามารถดึงข้อมูลผู้ใช้", details: err.message });
+            }
+            if (results.length === 0) {
+                return res.status(404).json({ error: true, msg: "❌ ไม่พบผู้ใช้ที่ต้องการ" });
+            }
+            res.json({ error: false, data: results[0] });
+        }
+    );
 });
+
 
 app.post("/addUser", (req, res) => {
     const { user_id, fullname_user, email, role, chronic_disease, status, patient_id } = req.body;
