@@ -68,7 +68,8 @@ app.get('/', (req, res) => {
             { "api_name": "/api/patients/status/1", "method": "get" },
             { "api_name": "/api/patients/age-range", "method": "get" },
             { "api_name": "/api/patients/status/1", "method": "get" },
-            { "api_name": "/api/top-diseases", "method": "get" }
+            { "api_name": "/api/top-diseases", "method": "get" },
+            { "api_name": "/register/", "method": "post" }
         ]
     });
 });
