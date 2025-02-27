@@ -256,49 +256,64 @@ app.get('/getAppointments', (req, res) => {
 app.post('/addAppointment', (req, res) => {
     let { appointment_id, patient_id, user_id, appointment_datetime, clinic } = req.body;
 
-    // ตรวจสอบค่าที่รับเข้ามา
+    // ✅ ตรวจสอบค่าที่รับเข้ามา
     if (!patient_id || !user_id || !appointment_datetime || !clinic) {
-        return res.status(400).json({ error: true, msg: "กรุณากรอกข้อมูลให้ครบถ้วน" });
+        return res.status(400).json({ error: true, msg: "❌ กรุณากรอกข้อมูลให้ครบถ้วน" });
     }
 
-    // ตรวจสอบรูปแบบวันที่-เวลา (ต้องเป็น YYYY-MM-DD HH:mm:ss)
+    // ✅ ตรวจสอบรูปแบบวันที่-เวลา (ต้องเป็น YYYY-MM-DD HH:mm:ss)
     const dateTimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
     if (!dateTimeRegex.test(appointment_datetime)) {
-        return res.status(400).json({ error: true, msg: "รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD HH:mm:ss)" });
+        return res.status(400).json({ error: true, msg: "❌ รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD HH:mm:ss)" });
     }
 
-    // ถ้าไม่มี appointment_id ให้สร้างใหม่
+    // ✅ ถ้าไม่มี appointment_id ให้สร้างใหม่ (APT + เลข 2 หลัก)
     if (!appointment_id) {
-        const randomNum = Math.floor(10 + Math.random() * 90); // สุ่มเลข 10-99
-        appointment_id = `APT${randomNum}`;
+        const randomNum = Math.floor(10 + Math.random() * 90); // เลข 2 หลัก (10-99)
+        appointment_id = `APT${randomNum}`; // เช่น APT12
     }
 
-    console.log("Generated appointment_id:", appointment_id);
+    console.log("📌 Generated appointment_id:", appointment_id);
 
-    // แปลงวันที่-เวลาให้เป็นโซนเอเชีย (Asia/Bangkok)
-    const appointmentDateTimeAsia = moment.tz(appointment_datetime, "Asia/Bangkok").format("YYYY-MM-DD HH:mm:ss");
+    // ✅ แปลงวันที่-เวลาเป็นโซน Asia/Bangkok โดยไม่ใช้ moment.js
+    const appointmentDate = new Date(appointment_datetime);
+    appointmentDate.setHours(appointmentDate.getHours() + 7); // ปรับเป็น UTC+7
+    const formattedDateTime = appointmentDate.toISOString().slice(0, 19).replace("T", " ");
 
-    // คำสั่ง SQL
-    const sql = `
-        INSERT INTO appointments (appointment_id, patient_id, user_id, appointment_date, clinic) 
-        VALUES (?, ?, ?, ?, ?)
-    `;
 
-    // ดำเนินการเพิ่มข้อมูล
-    connection.query(sql, [appointment_id, patient_id, user_id, appointmentDateTimeAsia, clinic], (err, results) => {
+    // ✅ ตรวจสอบว่า `appointment_id` ซ้ำหรือไม่
+    const checkSql = `SELECT * FROM appointments WHERE appointment_id = ?`;
+    connection.query(checkSql, [appointment_id], (err, results) => {
         if (err) {
-            console.error("❌ Database Insert Error:", err);
-            return res.status(500).json({ 
-                error: true, 
-                msg: "ไม่สามารถเพิ่มนัดหมายได้", 
-                details: err.sqlMessage 
-            });
+            console.error("❌ Database Error:", err);
+            return res.status(500).json({ error: true, msg: "❌ ไม่สามารถตรวจสอบข้อมูลได้", details: err.sqlMessage });
         }
-        
-        res.json({ error: false, msg: "✅ เพิ่มนัดหมายสำเร็จ!", data: results });
+
+        if (results.length > 0) {
+            return res.status(400).json({ error: true, msg: "❌ appointment_id ซ้ำในระบบ" });
+        }
+
+        // ✅ คำสั่ง SQL สำหรับเพิ่มข้อมูล
+        const sql = `
+            INSERT INTO appointments (appointment_id, patient_id, user_id, appointment_date, clinic) 
+            VALUES (?, ?, ?, ?, ?)
+        `;
+
+        // ✅ ดำเนินการเพิ่มข้อมูล
+        connection.query(sql, [appointment_id, patient_id, user_id, formattedDateTime, clinic], (err, results) => {
+            if (err) {
+                console.error("❌ Database Insert Error:", err);
+                return res.status(500).json({ 
+                    error: true, 
+                    msg: "❌ ไม่สามารถเพิ่มนัดหมายได้", 
+                    details: err.sqlMessage 
+                });
+            }
+            
+            res.json({ error: false, msg: "✅ เพิ่มนัดหมายสำเร็จ!", data: results });
+        });
     });
 });
-
 
 app.put('/updateAppointment/:appointmentId', (req, res) => {
     const { appointmentId } = req.params; // รับค่า appointmentId จาก URL
