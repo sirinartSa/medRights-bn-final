@@ -300,38 +300,40 @@ app.post('/addAppointment', (req, res) => {
 });
 
 
-app.put('/editAppointment/:appointmentId', (req, res) => {
+app.put('/updateAppointment/:appointmentId', (req, res) => {
     const { appointmentId } = req.params; // รับค่า appointmentId จาก URL
-    const { appointment_date, clinic } = req.body; // รับค่าจาก body
+    const { patient_id, appointment_date, clinic, user_id } = req.body; // รับค่าจาก body
 
-    // ตรวจสอบว่ามีข้อมูลเพียงพอหรือไม่
+    // ✅ ตรวจสอบค่าที่ต้องใช้
     if (!appointmentId) {
         return res.status(400).json({ error: true, msg: "Missing appointment ID" });
     }
-    if (!appointment_date || !clinic) {
+    if (!patient_id || !appointment_date || !clinic || !user_id) {
         return res.status(400).json({ error: true, msg: "Missing required fields" });
     }
 
-    // ตรวจสอบว่า ID เป็น string ตามที่กำหนด (เพราะเป็น VARCHAR(10))
+    // ✅ ตรวจสอบว่า ID เป็น string ตามที่กำหนด (VARCHAR(10))
     if (typeof appointmentId !== 'string' || appointmentId.length > 10) {
         return res.status(400).json({ error: true, msg: "Invalid appointment ID format" });
     }
 
-    // อัปเดตข้อมูลในฐานข้อมูล
-    connection.query(
-        'UPDATE appointments SET appointment_date = ?, clinic = ? WHERE appointment_id = ?',
-        [appointment_date, clinic, appointmentId],
-        (err, results) => {
-            if (err) {
-                console.error("Database error:", err);
-                return res.status(500).json({ error: true, msg: "Database error", details: err.message });
-            }
-            if (results.affectedRows === 0) {
-                return res.status(404).json({ error: true, msg: "Appointment not found or no changes made" });
-            }
-            res.json({ error: false, msg: "Appointment updated successfully", data: results });
+    // ✅ อัปเดตข้อมูลในฐานข้อมูล
+    const sql = `
+        UPDATE appointments 
+        SET patient_id = ?, appointment_date = ?, clinic = ?, user_id = ?
+        WHERE appointment_id = ?
+    `;
+
+    connection.query(sql, [patient_id, appointment_date, clinic, user_id, appointmentId], (err, results) => {
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).json({ error: true, msg: "Database error", details: err.message });
         }
-    );
+        if (results.affectedRows === 0) {
+            return res.status(404).json({ error: true, msg: "Appointment not found or no changes made" });
+        }
+        res.json({ error: false, msg: "Appointment updated successfully", data: results });
+    });
 });
 
 
